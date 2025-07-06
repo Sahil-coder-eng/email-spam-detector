@@ -1,7 +1,9 @@
-
-pandas
-numpy
-nltk
+streamlit
 scikit-learn
+pandas
+nltk
+joblib
 matplotlib
+wordcloud
+numpy
 seaborn
