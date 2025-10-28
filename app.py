@@ -7,11 +7,11 @@ import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 import numpy as np
 
-# Load model and vectorizer
+# ---------------- Load model and vectorizer ----------------
 model = joblib.load('model.pkl')
 tfidf = joblib.load('tfidf.pkl')
 
-# ---------- Sidebar ----------
+# ---------------- Sidebar ----------------
 with st.sidebar:
     st.title("📧 Spam Detector App")
     st.markdown("Built by **Sahil Samal**")
@@ -21,11 +21,11 @@ with st.sidebar:
     st.markdown("💡 Paste any email text to classify as **Spam** or **Not Spam**")
     st.markdown("✅ Confidence score, word cloud, and transformed text included!")
 
-# ---------- Page Title ----------
+# ---------------- Page Title ----------------
 st.title("📨 Email Spam Detection")
 st.markdown("Enter an email message below to detect if it's **Spam** or **Not Spam**.")
 
-# ---------- Input Email ----------
+# ---------------- Input Email ----------------
 email_input = st.text_area("✉️ Your Email Text Here", height=200)
 
 if st.button("📌 Predict"):
@@ -35,8 +35,26 @@ if st.button("📌 Predict"):
         # Transform and vectorize
         transformed = transform_text(email_input)
         vector_input = tfidf.transform([transformed])
-        result = model.predict(vector_input)[0]
+
+        # Predict probabilities
         proba = model.predict_proba(vector_input)[0]
+        spam_prob = proba[1]
+        ham_prob = proba[0]
+
+        # 🔧 Adjusted threshold for better spam sensitivity
+        threshold = 0.45  # Previously 0.4
+        result = 1 if spam_prob >= threshold else 0
+
+        # Add borderline warning for near-threshold predictions
+        if abs(spam_prob - threshold) < 0.1:
+            st.warning("⚠️ This email is borderline. Review manually if unsure.")
+
+        # Show short text / unseen phrase warning
+        word_count = len(email_input.split())
+        if word_count < 4:
+            st.info("🧠 This message is very short. Spam detection may be uncertain.")
+        elif spam_prob < 0.6 and result == 1:
+            st.info("🧠 Borderline spam detected — short or unusual phrasing like 'won' or 'lottery'.")
 
         # Result display
         if result == 1:
@@ -44,10 +62,12 @@ if st.button("📌 Predict"):
         else:
             st.success("✅ This email is **NOT SPAM**.")
 
-        # Show prediction confidence
+        # ✅ Show confidence in percentage format
         st.subheader("🔍 Prediction Confidence")
-        st.write(f"Spam: {proba[1]:.2%} | Not Spam: {proba[0]:.2%}")
-        st.progress(float(proba[1]))
+        st.markdown(f"**Spam:** {spam_prob * 100:.2f}% | **Not Spam:** {ham_prob * 100:.2f}%")
+
+        # Optional progress visualization
+        st.progress(float(spam_prob))
 
         # Show transformed text
         if st.checkbox("🔎 Show Transformed Text"):
@@ -60,7 +80,7 @@ if st.button("📌 Predict"):
             plt.axis("off")
             st.pyplot(plt)
 
-# ---------- Bulk Prediction ----------
+# ---------------- Bulk Email Prediction ----------------
 st.markdown("---")
 st.header("📋 Bulk Email Prediction")
 multi_input = st.text_area("Paste multiple emails (one per line):")
@@ -73,6 +93,15 @@ if st.button("📍 Predict All"):
         for i, line in enumerate(lines):
             transformed = transform_text(line)
             vector = tfidf.transform([transformed])
-            result = model.predict(vector)[0]
-            label = "🚫 SPAM" if result == 1 else "✅ Not Spam"
-            st.write(f"**Email {i+1}:** {label}")
+            proba = model.predict_proba(vector)[0]
+            spam_prob = proba[1]
+
+            threshold = 0.45
+            if spam_prob >= threshold:
+                label = "🚫 SPAM"
+                if abs(spam_prob - threshold) < 0.1:
+                    label += " ⚠️ (Borderline)"
+            else:
+                label = "✅ Not Spam"
+
+            st.write(f"**Email {i+1}:** {label} — Spam: {spam_prob * 100:.2f}% | Not Spam: {(1 - spam_prob) * 100:.2f}%")
